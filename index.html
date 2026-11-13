@@ -189,7 +189,7 @@ var SEAT_API = 'https://script.google.com/macros/s/AKfycbwGddl6WMjBU8uxIrlyEsDJ_
     <h2 id="closedTitle">신청 오픈 전입니다</h2>
     <div id="countdown" class="count"></div>
     <p class="note" id="closedNote"></p>
-    <button class="btn ghost lkbtn" id="openLookup2" type="button">내 신청 좌석 조회</button>
+    <button class="btn ghost lkbtn hide" id="openLookup2" type="button">내 신청 좌석 조회</button>
   </section>
 
   <div id="flow" class="hide">
@@ -377,14 +377,14 @@ function checkPeriod(){
   if (d.testMode || (now>=d.open && now<=d.close)) { show('closed',false); show('flow',true); return; }
   show('flow',false); show('closed',true);
   if (now<d.open){
-    $('closedTitle').textContent='신청 오픈 전입니다';
+    $('closedTitle').textContent='신청 오픈 전입니다'; show('openLookup2',false);
     $('closedNote').textContent='신청 기간: '+fmt(d.open)+' ~ '+fmt(d.close);
     var left=d.open-now, h=Math.floor(left/3600000), m=Math.floor(left%3600000/60000), s=Math.floor(left%60000/1000);
     $('countdown').textContent = h>=24 ? Math.floor(h/24)+'일 '+(h%24)+'시간 '+m+'분'
       : h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
     setTimeout(function(){ if (srvNow()>=d.open){ openNow(); } else checkPeriod(); }, 1000);
   } else {
-    $('closedTitle').textContent='신청이 마감되었습니다';
+    $('closedTitle').textContent='신청이 마감되었습니다'; show('openLookup2',true);
     $('countdown').textContent='';
     $('closedNote').textContent='미신청 학생은 남은 좌석으로 임의 배정됩니다. 문의는 독학관으로 연락해주세요.';
   }
