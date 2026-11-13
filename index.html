@@ -77,6 +77,11 @@ var SEAT_API = 'https://script.google.com/macros/s/AKfycbwGddl6WMjBU8uxIrlyEsDJ_
   .grid{display:grid;gap:6px;justify-content:center}
   .seat{min-width:46px;height:42px;border-radius:8px;border:1.5px solid var(--ok);background:#fff;color:var(--ok);font-size:12px;letter-spacing:-.02em;font-weight:700;cursor:pointer;padding:0 2px}
   .seat.taken{background:var(--taken);border-color:var(--taken);color:#fff;cursor:not-allowed}
+  .seat.mine{background:#ffe08a;border:2px solid #d48f00;color:#7a4a00;font-weight:800;cursor:default}
+  .lkbtn{margin-top:10px}
+  .lkres{margin-top:14px;padding:14px;border-radius:12px;background:var(--brand-soft);color:var(--ink);font-size:14px;line-height:1.6}
+  .lkres b{color:var(--brand);font-size:20px}
+  .lkres.none{background:#f4f5f7;color:var(--sub)}
   .seat.block{background:var(--block);border-color:var(--block);color:#fff;cursor:not-allowed;font-size:11px}
   .seat.pick{background:var(--brand);border-color:var(--brand);color:#fff}
   .seat.rs{box-shadow:inset 0 4px 0 var(--russel)}
@@ -181,6 +186,7 @@ var SEAT_API = 'https://script.google.com/macros/s/AKfycbwGddl6WMjBU8uxIrlyEsDJ_
     <h2 id="closedTitle">신청 오픈 전입니다</h2>
     <div id="countdown" class="count"></div>
     <p class="note" id="closedNote"></p>
+    <button class="btn ghost lkbtn" id="openLookup2" type="button">내 신청 좌석 조회</button>
   </section>
 
   <div id="flow" class="hide">
@@ -198,6 +204,7 @@ var SEAT_API = 'https://script.google.com/macros/s/AKfycbwGddl6WMjBU8uxIrlyEsDJ_
       <label>학부모 연락처</label><input id="phone" type="tel" inputmode="numeric" maxlength="13" autocomplete="tel" placeholder="010-1234-5678">
       <div class="err" id="err1"></div>
       <button class="btn" id="toStep2">좌석 선택하러 가기</button>
+      <button class="btn ghost lkbtn" id="openLookup" type="button">내 신청 좌석 조회</button>
       <p class="note">현재 고정석을 이용 중인 재원생 전원이 대상입니다. 현재 좌석은 유지되지 않습니다.</p>
     </section>
 
@@ -216,6 +223,7 @@ var SEAT_API = 'https://script.google.com/macros/s/AKfycbwGddl6WMjBU8uxIrlyEsDJ_
           <span><i style="border:1.5px solid var(--ok);background:#fff"></i>선택 가능</span>
           <span><i style="background:var(--brand)"></i>내가 고른 좌석</span>
           <span><i style="background:var(--taken)"></i>마감</span>
+          <span id="mineLegend" class="hide"><i style="background:#ffe08a;border:2px solid #d48f00"></i>현재 내 좌석</span>
           <span><i style="background:var(--block)"></i>S반 (선택 불가)</span>
         </div>
         <div class="legend">
@@ -257,6 +265,17 @@ var SEAT_API = 'https://script.google.com/macros/s/AKfycbwGddl6WMjBU8uxIrlyEsDJ_
     <div class="row2"><button class="btn ghost" id="mCancel">다시 고르기</button><button class="btn" id="mOk">신청하기</button></div>
   </div>
 </div>
+<div class="modal" id="lkModal">
+  <div class="sheet">
+    <div class="big" style="font-size:22px">내 신청 좌석 조회</div>
+    <p class="note">신청할 때 입력한 학생 이름과 학부모 연락처를 넣어주세요.</p>
+    <label>학생 이름</label><input id="lkName" autocomplete="off" placeholder="홍길동">
+    <label>학부모 연락처</label><input id="lkPhone" type="tel" inputmode="numeric" maxlength="13" placeholder="010-1234-5678">
+    <div id="lkRes"></div>
+    <div class="err" id="lkErr"></div>
+    <div class="row2" style="margin-top:14px"><button class="btn ghost" id="lkClose" type="button">닫기</button><button class="btn" id="lkGo" type="button">조회하기</button></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -276,6 +295,13 @@ if (typeof google==="undefined") (function(){
       APPS.push({time:Date.now(),name:f.name,grade:f.grade,school:f.school,gender:f.gender,phone:f.phone,floor:s.floor,seatId:f.seatId,changes:0,history:""});
       return {ok:true,seatId:f.seatId,floor:s.floor,name:f.name}; },
     getAdminData:function(){ return {ok:true,now:Date.now(),open:0,close:0,testMode:true,rules:RULES,plans:PLANS,seats:SEATS,apps:APPS.map(function(a){a.key=a.name+"|"+a.phone;return a;})}; },
+    checkStudent:function(f){ var mine=APPS.filter(function(a){return a.name===f.name&&a.phone===f.phone;})[0];
+      if(!mine && APPS.some(function(a){return a.name.replace(/\s/g,"")===f.name.replace(/\s/g,"")&&a.grade===f.grade&&a.gender===f.gender&&a.school.replace(/\s/g,"")===f.school.replace(/\s/g,"");}))
+        return {ok:true,dup:true,msg:"이미 같은 학생(이름·학년·성별·학교)으로 신청된 좌석이 있어요. 좌석을 바꾸려면 처음 신청할 때 입력한 학부모 연락처로 들어와 주세요. 동명이인이라면 학원으로 문의해 주세요."};
+      return {ok:true,mine:mine?mine.seatId:""}; },
+    lookupMine:function(f){ var m=APPS.filter(function(a){return a.name===f.name&&a.phone===f.phone.replace(/\D/g,"");})[0];
+      if(!m) return {ok:true,found:false}; var s=SEATS.filter(function(x){return x.id===m.seatId;})[0];
+      return {ok:true,found:true,name:m.name,seatId:m.seatId,floor:m.floor,desk:s?s.desk:"",grade:m.grade,time:m.time,changes:m.changes||0}; },
     cancelApplication:function(pw,key){ APPS=APPS.filter(function(a){return a.name+"|"+a.phone!==key;}); return {ok:true}; }
   };
   window.google={script:{get run(){ var h={}; var p=new Proxy({},{get:function(_,k){
@@ -355,7 +381,14 @@ function buildStep1(){
     else if(!/^01\d{8,9}$/.test(phone)) e='학부모 연락처를 정확히 입력해주세요.';
     $('err1').textContent=e; if(e) return;
     S.form={name:name, grade:S.grade, gender:S.gender, school:school, phone:phone};
-    goStep2();
+    // 같은 학생 중복을 좌석 고르기 전에 미리 확인 (확인이 안 되면 그냥 진행 → 신청할 때 서버가 다시 확인)
+    var btn=$('toStep2'); btn.disabled=true; btn.textContent='확인 중…';
+    var done=false, go=function(r){ if(done) return; done=true; btn.disabled=false; btn.textContent='좌석 선택하러 가기';
+      if (r && r.dup){ $('err1').textContent=r.msg; return; }
+      S.mine=(r && r.mine)||''; goStep2();
+      if (S.mine) toast('현재 신청한 좌석은 '+S.mine+'이에요. 다른 좌석을 고르면 그 자리로 바뀝니다.'); };
+    setTimeout(function(){ go(null); }, 6000);
+    callRetry('checkStudent', S.form, go, function(){ go(null); }, 2);
   };
   var goBack=function(){ stopPoll(); $('modal').classList.remove('show'); show('step2',false); show('step1',true); setSteps(1); };
   $('backTo1').onclick=goBack; $('backTo1b').onclick=goBack; $('editInfo').onclick=goBack;
@@ -364,6 +397,25 @@ $('phone').addEventListener('input', function(){ var d=this.value.replace(/\D/g,
   this.value = d.length<4? d : d.length<8? d.slice(0,3)+'-'+d.slice(3) : d.slice(0,3)+'-'+d.slice(3,d.length-4)+'-'+d.slice(-4); });
 function setSteps(n){ window.scrollTo(0,0);  for(var i=1;i<=3;i++) $('st'+i).classList.toggle('on', i<=n); }
 
+// ── 내 신청 좌석 조회 ──
+function openLookup(){ $('lkName').value=$('name').value; $('lkPhone').value=$('phone').value; $('lkRes').innerHTML=''; $('lkErr').textContent=''; $('lkModal').classList.add('show'); }
+$('openLookup').onclick=openLookup; $('openLookup2').onclick=openLookup;
+$('lkClose').onclick=function(){ $('lkModal').classList.remove('show'); };
+$('lkPhone').addEventListener('input', function(){ var d=this.value.replace(/\D/g,'').slice(0,11);
+  this.value = d.length<4? d : d.length<8? d.slice(0,3)+'-'+d.slice(3) : d.slice(0,3)+'-'+d.slice(3,d.length-4)+'-'+d.slice(-4); });
+$('lkGo').onclick=function(){
+  var name=$('lkName').value.trim(), phone=$('lkPhone').value.replace(/\D/g,'');
+  $('lkRes').innerHTML=''; $('lkErr').textContent='';
+  if(!name || !/^01\d{8,9}$/.test(phone)){ $('lkErr').textContent='학생 이름과 학부모 연락처를 정확히 입력해주세요.'; return; }
+  var b=$('lkGo'); b.disabled=true; b.textContent='조회 중…';
+  callRetry('lookupMine', {name:name, phone:phone}, function(r){ b.disabled=false; b.textContent='조회하기';
+    if(!r.ok){ $('lkErr').textContent=r.msg||'다시 시도해주세요.'; return; }
+    if(!r.found){ $('lkRes').innerHTML='<div class="lkres none">입력하신 이름·연락처로 신청된 좌석이 없어요.<br>이름과 연락처를 신청할 때와 똑같이 입력했는지 확인해주세요.</div>'; return; }
+    $('lkRes').innerHTML='<div class="lkres">'+escapeHtml(r.name)+' 학생'+(r.grade?' ('+escapeHtml(r.grade)+')':'')+'<br><b>'+r.floor+'층 · '+escapeHtml(r.seatId)+(r.desk?' · '+escapeHtml(r.desk):'')+'</b>'
+      +(r.time?'<br>신청 시각: '+fmt(r.time):'')+(r.changes?' (변경 '+r.changes+'회)':'')+'</div>';
+  }, function(){ b.disabled=false; b.textContent='조회하기'; $('lkErr').textContent='접속이 지연되고 있어요. 잠시 후 다시 눌러주세요.'; }, 5);
+};
+
 // ── 2단계 ──
 function allowedFloors(){
   var r=S.data.rules; return Object.keys(r).sort().filter(function(f){
@@ -371,7 +423,8 @@ function allowedFloors(){
 }
 function goStep2(){
   show('step1',false); show('step2',true); setSteps(2);
-  $('whoText').textContent=S.form.name+' · '+S.form.grade+' · '+(S.form.gender==='여'?'여학생':'남학생');
+  $('whoText').textContent=S.form.name+' · '+S.form.grade+' · '+(S.form.gender==='여'?'여학생':'남학생')+(S.mine?' · 현재 '+S.mine:'');
+  show('mineLegend', !!S.mine);
   var fl=allowedFloors();
   $('tabs').innerHTML=fl.map(function(f){ return '<button data-f="'+f+'">'+f+'층</button>'; }).join('');
   $('tabs').onclick=function(e){ var b=e.target.closest('button'); if(b){ S.floor=b.getAttribute('data-f'); $('mapwrap').scrollLeft=0; renderGrid(); scrollToFree(); } };
@@ -424,6 +477,7 @@ function renderGrid(){
     if (s.type==='표시') return '<div class="lbl" style="'+pos+'">'+escapeHtml(s.id)+'</div>';
     var cls='seat'+(s.desk==='독서실형'?' dk':' rs'), dis='';
     if (s.type!=='일반') { cls+=' block'; dis=' disabled'; }
+    else if (S.mine && S.mine===s.id) { cls+=' mine'; dis=' disabled'; }
     else if (S.taken[s.id]) { cls+=' taken'; dis=' disabled'; }
     else if (S.pick && S.pick.id===s.id) cls+=' pick';
     var label = s.type==='S반' ? 'S반' : (s.type!=='일반' ? '—' : s.id);
@@ -495,7 +549,7 @@ function submit(){
     if (!r.ok && r.code==='BUSY' && busyTry<60){ busyTry++; $('mErr').textContent='접속자가 많아 자동으로 다시 시도하는 중… 화면을 닫지 마세요';
       setTimeout(function(){ callRetry('submitApplication', payload, onRes, onFail, 30, onWait); }, 300+Math.random()*1500); return; }
     S.sending=false; $('mOk').disabled=false; $('mOk').textContent='신청하기';
-    if (r.ok){ $('modal').classList.remove('show'); stopPoll(); show('step2',false); show('step3',true); setSteps(3);
+    if (r.ok){ S.mine=r.seatId; $('modal').classList.remove('show'); stopPoll(); show('step2',false); show('step3',true); setSteps(3);
       $('doneSeat').textContent=r.floor+'층 · '+r.seatId; $('doneText').textContent= r.from ? r.name+' 학생의 좌석이 '+r.from+' → '+r.seatId+'(으)로 변경되었습니다.' : r.name+' 학생의 좌석 신청이 접수되었습니다.'; $('doneTitle').textContent = r.from ? '좌석이 변경되었습니다' : '신청이 완료되었습니다'; return; }
     $('mErr').textContent=r.msg;
     if (r.code==='TAKEN'){ if (r.taken){ setTaken(r.taken); renderGrid(); setTimeout(function(){ $('modal').classList.remove('show'); },1400); } else refreshTaken(function(){ setTimeout(function(){ $('modal').classList.remove('show'); },1400); }); }
